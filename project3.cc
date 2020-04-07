@@ -54,7 +54,6 @@ struct InstructionNode* parse_generate_intermediate_representation()
     Parser parser;
     struct InstructionNode* program = new InstructionNode();
     program = parser.parse_program();
-    cout << "damn";
     return program;
 }
 
@@ -210,7 +209,6 @@ struct InstructionNode* Parser::parse_stmt()
     else if (t.token_type == OUTPUT)
     {
         inst = parse_output_stmt();
-        cout << mem[inst->input_inst.var_index] << " ";
     }
     else
     {
@@ -306,6 +304,7 @@ struct InstructionNode* Parser::parse_assign_stmt()
     {
         syntax_error();
     }
+    inst->next = nullptr;
     return inst;
 }
 
@@ -424,6 +423,7 @@ struct InstructionNode* Parser::parse_output_stmt()
     {
         syntax_error();
     }
+    inst->next = nullptr;
     return inst;
 
 }
@@ -453,6 +453,7 @@ struct InstructionNode* Parser::parse_input_stmt()
     {
         syntax_error();
     }
+    inst->next = nullptr;
     return inst;
 }
 
@@ -519,7 +520,7 @@ struct InstructionNode* Parser::parse_if_stmt()
     noopNode->type = NOOP;
 
     temp = inst;
-    while (temp->next)
+    while (temp->next != nullptr)
     {
         temp = temp->next;
     }
@@ -534,6 +535,7 @@ struct InstructionNode* Parser::parse_condition()
     // primary relop primary
     struct InstructionNode* inst = new InstructionNode;
     struct InstructionNode* temp = new InstructionNode;
+    inst->type = CJMP;
     temp = parse_primary();
     inst->cjmp_inst.operand1_index = temp->cjmp_inst.operand1_index;
 
@@ -541,7 +543,7 @@ struct InstructionNode* Parser::parse_condition()
     inst->cjmp_inst.condition_op = temp->cjmp_inst.condition_op;
 
     temp = parse_primary();
-    inst->cjmp_inst.operand2_index = temp->cjmp_inst.operand2_index;
+    inst->cjmp_inst.operand2_index = temp->cjmp_inst.operand1_index;
 
     return inst;
 
