@@ -25,8 +25,8 @@ class Parser
         struct InstructionNode* parse_expr();
         struct InstructionNode* parse_primary();
         int parse_op();
-        void parse_output_stmt();
-        void parse_input_stmt();
+        struct InstructionNode* parse_output_stmt();
+        struct InstructionNode* parse_input_stmt();
         struct InstructionNode* parse_while_stmt();
         struct InstructionNode* parse_if_stmt();
         struct InstructionNode* parse_condition();
