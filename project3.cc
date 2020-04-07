@@ -164,12 +164,7 @@ struct InstructionNode* Parser::parse_stmt_list()
         instl2 = parse_stmt_list();
         struct InstructionNode* temp;
         // append instl2 to the end of instl1
-        temp = instl1;
-        while (temp->next)
-        {
-            temp = temp->next;
-        }
-        temp->next = instl2;
+        instl1->next = instl2;
         return instl1;
     }
     else if (t.token_type == RBRACE)
@@ -207,6 +202,15 @@ struct InstructionNode* Parser::parse_stmt()
     else if (t.token_type == FOR)
     {
         inst = parse_for_stmt();
+    }
+    else if (t.token_type == INPUT)
+    {
+        inst = parse_input_stmt();
+    }
+    else if (t.token_type == OUTPUT)
+    {
+        inst = parse_output_stmt();
+        cout << mem[inst->input_inst.var_index] << " ";
     }
     else
     {
@@ -337,7 +341,7 @@ struct InstructionNode* Parser::parse_expr()
     
 
     temp = parse_primary();
-    inst->assign_inst.operand2_index = temp->assign_inst.operand2_index;
+    inst->assign_inst.operand2_index = temp->assign_inst.operand1_index;
 
     return inst;
 }
@@ -397,9 +401,11 @@ int Parser::parse_op()
 
 }
 
-void Parser::parse_output_stmt()
+struct InstructionNode* Parser::parse_output_stmt()
 {
     // output ID SEMICOLON
+    struct InstructionNode* inst = new InstructionNode;
+    inst->type = OUT;
     Token t = lexer.GetToken();
     if (t.token_type != OUTPUT)
     {
@@ -411,21 +417,22 @@ void Parser::parse_output_stmt()
         syntax_error();
     }
 
-    cout << mem[location(t.lexeme)] << endl;
-    
+    inst->output_inst.var_index = location(t.lexeme);
 
     t = lexer.GetToken();
     if (t.token_type != SEMICOLON)
     {
         syntax_error();
     }
+    return inst;
 
 }
 
-void Parser::parse_input_stmt()
+struct InstructionNode* Parser::parse_input_stmt()
 {
     // input ID SEMOCOLON
     struct InstructionNode* inst = new InstructionNode;
+    inst->type = IN;
     
 
     Token t = lexer.GetToken();
@@ -441,15 +448,12 @@ void Parser::parse_input_stmt()
     
     inst->input_inst.var_index = location(t.lexeme);
 
-    mem[location(t.lexeme)] = inputs[next_input];
-    next_input++;
-
     t = lexer.GetToken();
     if (t.token_type != SEMICOLON)
     {
         syntax_error();
     }
-
+    return inst;
 }
 
 struct InstructionNode* Parser::parse_while_stmt()
