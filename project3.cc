@@ -48,10 +48,24 @@ int location(string find)
     }
 }
 
+bool check_for_case(string case_num)
+{
+    bool check = false;
+    for (unsigned i = 0; i < variables.size(); i++)
+    {
+        if (variables[i].compare(case_num) == 0)
+        {
+            check = true;
+            break;
+        }
+    }
+    return check;
+}
+
 struct InstructionNode* parse_generate_intermediate_representation()
 {
     
-    Parser parser;
+    Parser parser; 
     struct InstructionNode* program = new InstructionNode();
     program = parser.parse_program();
     return program;
@@ -161,9 +175,13 @@ struct InstructionNode* Parser::parse_stmt_list()
         || t.token_type == OUTPUT)
     {
         instl2 = parse_stmt_list();
-        struct InstructionNode* temp;
+        struct InstructionNode* temp = instl1;
         // append instl2 to the end of instl1
-        instl1->next = instl2;
+        while (temp->next)
+        {
+            temp = temp->next;
+        }
+        temp->next = instl2;
         return instl1;
     }
     else if (t.token_type == RBRACE)
@@ -253,31 +271,7 @@ struct InstructionNode* Parser::parse_assign_stmt()
             inst->assign_inst.operand1_index = temp->assign_inst.operand1_index;
             inst->assign_inst.operand2_index = temp->assign_inst.operand2_index;
 
-            // evaluate the right hand side and set the value of the lhs to the result
-            int result;
-            int value1 = mem[inst->assign_inst.operand1_index];
-            int value2 = mem[inst->assign_inst.operand2_index];
-            ArithmeticOperatorType a_op = inst->assign_inst.op;
-            
-            if (a_op == OPERATOR_PLUS)
-            {
-                result = value1 + value2;
-            }
-            else if (a_op == OPERATOR_MINUS)
-            {
-                result = value1 - value2;
-            }
-            else if (a_op == OPERATOR_MULT)
-            {
-                result = value1 * value2;
-            }
-            else if (a_op == OPERATOR_DIV)
-            {
-                result = value1 / value2;
-            }
-            mem[inst->assign_inst.left_hand_side_index] = result;
-            
-            
+           
         }
         else if (t2.token_type == SEMICOLON)
         {
@@ -287,8 +281,6 @@ struct InstructionNode* Parser::parse_assign_stmt()
             temp = parse_primary();
             // set the insts' operand1 index to temp's operand1 index 
             inst->assign_inst.operand1_index = temp->assign_inst.operand1_index;
-            // assign the value located in operand1's index to th value associated with the lhs index
-            mem[inst->assign_inst.left_hand_side_index] = mem[inst->assign_inst.operand1_index]; 
 
             inst->assign_inst.op = OPERATOR_NONE;
         
@@ -579,6 +571,19 @@ struct InstructionNode* Parser::parse_switch_stmt()
     // SWITCH ID LBRACE case_list RBRACE
     // SWITCH ID LBRACE case_list default_case RBRACE
     struct InstructionNode* inst = new InstructionNode;
+    struct InstructionNode* body = new InstructionNode;
+    struct InstructionNode* noopNode = new InstructionNode;
+    struct InstructionNode* defaultCase = new InstructionNode;
+    struct InstructionNode* temp = new InstructionNode;
+    struct InstructionNode* temp1 = new InstructionNode;
+    int variable;
+
+    inst->type = CJMP;
+    inst->cjmp_inst.condition_op = CONDITION_NOTEQUAL;
+
+    noopNode->type = NOOP;
+    noopNode->next = nullptr;
+
     Token t = lexer.GetToken();
     if (t.token_type != SWITCH)
     {
@@ -589,12 +594,39 @@ struct InstructionNode* Parser::parse_switch_stmt()
     {
         syntax_error();
     }
+
+    variable = location(t.lexeme);
+    inst->cjmp_inst.operand1_index = variable;
+
     t = lexer.GetToken();
     if (t.token_type != LBRACE)
     {
         syntax_error();
     }
-    parse_case_list();
+    body = parse_case_list();
+    temp = body;
+    while (temp->next)
+    {
+        temp->cjmp_inst.operand1_index = variable;
+        temp->cjmp_inst.condition_op = CONDITION_NOTEQUAL;
+        temp1 = temp->cjmp_inst.target;
+        while (temp1->next)
+        {
+            temp1 = temp1->next;
+        }
+        temp1->jmp_inst.target = noopNode;
+        temp = temp->next;
+    }
+    temp->cjmp_inst.operand1_index = variable;
+    temp->cjmp_inst.condition_op = CONDITION_NOTEQUAL;
+    temp1 = temp->cjmp_inst.target;
+    while (temp1->next)
+    {
+        temp1 = temp1->next;
+    }
+    temp1->jmp_inst.target = noopNode;
+    inst = body;
+    
     t = peek();
     if (t.token_type == RBRAC)
     {
@@ -603,7 +635,14 @@ struct InstructionNode* Parser::parse_switch_stmt()
     }
     else if (t.token_type == DEFAULT)
     {
-        parse_default_case();
+        defaultCase = parse_default_case();
+        temp = inst;
+        while (temp->next)
+        {
+            temp = temp->next;
+        }
+        
+        
         t = lexer.GetToken();
         if (t.token_type != RBRACE)
         {
@@ -616,29 +655,23 @@ struct InstructionNode* Parser::parse_switch_stmt()
 struct InstructionNode* Parser::parse_case_list()
 {
     // case case_list | case
+    // link all cases together, and link all cases to the noopNode
+    struct InstructionNode* inst = new InstructionNode;
     struct InstructionNode* caseNode = new InstructionNode;
-    struct InstructionNode* temp = new InstructionNode;
-    struct InstructionNode* jmpNode = new InstructionNode;
-    caseNode = parse_case();
-    temp = caseNode;
-    while (temp->next)
-    {
-        temp = temp->next;
-    }
-    temp->next = jmpNode;
 
+    inst = parse_case();
+     
     Token t = peek();
     if (t.token_type == CASE)
     {
-        parse_case_list();
+        caseNode = parse_case_list(); // temp holds the next set of case nods (cjmp, body, jmp)
+        inst->next = caseNode;
+        return inst;
     }
     else if (t.token_type == RBRACE)
     {
-        return caseNode;
-    }
-    else if (t.token_type == DEFAULT)
-    {
-        return caseNode;
+        inst->next = nullptr;
+        return inst;
     }
 }
 
@@ -646,17 +679,39 @@ struct InstructionNode* Parser::parse_case()
 {
     // CASE NUM COLON body
     struct InstructionNode* body = new InstructionNode;
+    struct InstructionNode* inst = new InstructionNode;
+    struct InstructionNode* jmpNode = new InstructionNode;
+    struct InstructionNode* temp = new InstructionNode;
+
+    inst->type = CJMP;
+    inst->next = nullptr;
+
+    jmpNode->type = JMP;
+    jmpNode->jmp_inst.target = nullptr;
+    jmpNode->next = nullptr;
+    
 
     Token t = lexer.GetToken();
     if (t.token_type != CASE)
     {
         syntax_error();
     }
+
     t = lexer.GetToken();
     if (t.token_type != NUM)
     {
         syntax_error();
     }
+
+    if (check_for_case(t.lexeme))
+    {
+        inst->cjmp_inst.operand2_index = location(t.lexeme);
+    }
+    else
+    {
+        inst->cjmp_inst.operand2_index = 1000;
+    }
+
     t = lexer.GetToken();
     if (t.token_type != COLON)
     {
@@ -664,25 +719,37 @@ struct InstructionNode* Parser::parse_case()
     }
     body = parse_body();
 
-    return body;
-
+    temp = body;
+    while (temp->next)
+    {
+        temp = temp->next;
+    }
+    temp->next = jmpNode;
+    inst->cjmp_inst.target = body;
+    return inst;
 }
 
 struct InstructionNode* Parser::parse_default_case()
 {
     // DEFAULT COLON body
     struct InstructionNode* body = new InstructionNode;
+
     Token t = lexer.GetToken();
+
     if (t.token_type != DEFAULT)
     {
         syntax_error();
     }
+
     t = lexer.GetToken();
+
     if (t.token_type != COLON)
     {
         syntax_error();
     }
-    parse_body();
+    
+    body = parse_body();
+
     return body;
 }
 
@@ -711,6 +778,7 @@ struct InstructionNode* Parser::parse_for_stmt()
     t = lexer.GetToken();
     if (t.token_type != LPAREN)
     {
+
         syntax_error();
     }
 
