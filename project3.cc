@@ -641,6 +641,13 @@ struct InstructionNode* Parser::parse_switch_stmt()
         {
             temp = temp->next;
         }
+        temp1 = temp->cjmp_inst.target;
+        while (temp1->next)
+        {
+            temp1 = temp1->next;
+        }
+        temp1->next = noopNode;
+
         
         
         t = lexer.GetToken();
@@ -650,6 +657,7 @@ struct InstructionNode* Parser::parse_switch_stmt()
         }
         return inst;
     }
+    return inst;
 }
 
 struct InstructionNode* Parser::parse_case_list()
